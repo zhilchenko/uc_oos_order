@@ -1,0 +1,67 @@
+<?php
+
+/**
+ * @file
+ * Install file for uc_oos_order.
+ */
+
+/**
+ * Implementation of hook_schema().
+ */
+function uc_oos_order_schema() {
+  $schema = array();
+
+  $schema['uc_oos_order'] = array(
+    'fields' => array(
+      'rid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'sku' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'mail' => array(
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'created' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('rid'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function uc_oos_order_install() {
+  drupal_install_schema('uc_oos_order');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function uc_oos_order_uninstall() {
+  drupal_uninstall_schema('uc_oos_order');
+
+  // Delete related variables all at once.
+  db_query("DELETE FROM {variable} WHERE name LIKE 'uc_oos_order_%%'");
+}
