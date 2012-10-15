@@ -1,0 +1,5 @@
+name = Out of stock order
+description = Allows customer make procurement request for out of stock product.
+dependencies[] =  uc_stock
+package = Ubercart - extra
+core = 6.x
