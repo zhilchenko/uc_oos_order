@@ -1,0 +1,193 @@
+<?php
+
+/**
+ * @file
+ * Allows customer make procurement request for out of stock product.
+ */
+
+/****************************
+ * Drupal hooks
+ ***************************/
+
+/**
+ * Implementation of hook_perm().
+ */
+function uc_oos_order_perm() {
+  return array('order out of stock');
+}
+
+/**
+ * Implementation of hook_menu()
+ */
+function uc_oos_order_menu() {
+  $items = array();
+
+  $items['uc_oos_order/in_stock'] = array(
+    'title' => 'AJAX callback',
+    'access arguments' => array('order out of stock'),
+    'page callback' => 'uc_oos_order_in_stock_js',
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_form_alter()
+ */
+function uc_oos_order_form_alter(&$form, $form_state, $form_id) {
+  if (!user_access('order out of stock')) {
+    return FALSE;
+  }
+
+  $forms = array('uc_product_add_to_cart_form', 'uc_catalog_buy_it_now_form');
+  foreach ($forms as $id) {
+    if (substr($form_id, 0, strlen($id)) != $id) {
+      continue;
+    }
+
+    // If there attributes on form
+    if (isset($form['attributes'])) {
+      $nid = $form['nid']['#value'];
+      foreach ($form['attributes'] as $aid => $value) {
+        // If not a property
+        if (is_numeric($aid)) {
+          // Skip unsupported attributes
+          $attribute = uc_attribute_load($aid);
+          // 1 is select and 2 is radio
+          if ($attribute->display != 1 && $attribute->display != 2) {
+            continue;
+          }
+
+          // Add AHAH
+          $form['attributes'][$aid]['#ahah'] = array(
+            'event' => 'change',
+            'path' => 'uc_oos_order/in_stock',
+            'wrapper' => 'uc-oos-order-wrapper',
+            'method' => 'replace',
+            'effect' => 'none',
+            'progress' => array(
+              'type' => 'throbber',
+            )
+          );
+          // Collect for future stock checking
+          $attrs[$aid] = $value;
+        }
+      }
+      // Add wrapper for AHAH
+      $form['#prefix'] = '<div id="uc-oos-order-wrapper">';
+      $form['#suffix'] = '</div>';
+
+      // Get stock value
+      $stock = uc_out_of_stock_getstockinfo($nid, $attrs);
+    }
+    else {
+      // Get stock value
+      $model = $form['node']['#value']->model;
+      $stock = uc_out_of_stock_getstockinfo_from_model($model);
+    }
+    // If product is in stock
+    if ($stock['stock'] <= 0) {
+      // Set our custom action and submit button
+      uc_oos_order_addtocart_form_modify($form, $form_state);
+    }
+  return $form;
+  }
+}
+
+/****************************
+ * Helper functions
+ ***************************/
+
+/**
+* Callback function for uc_oos_order/get_stock.
+* The return HTML will be outputted by AHAH.
+*/
+function uc_oos_order_in_stock_js() {
+  // Get form from cache
+  $form_state = array('submitted' => FALSE);
+  $form_build_id = $_POST['form_build_id'];
+  if (!$form = form_get_cache($form_build_id, $form_state)) {
+    exit();
+  }
+
+  // Get stock value
+  $nid = $form['nid']['#value'];
+  $attrs = $_POST['attributes'];
+  $stock = uc_out_of_stock_getstockinfo($nid, $attrs);
+
+  // If product is in stock
+  if ($stock['stock'] > 0) {
+    // Restore original submit callbacks and button
+    uc_oos_order_addtocart_form_restore($form, $form_state);
+  }
+  else {
+    // Set custom submit callback and add submit button
+    uc_oos_order_addtocart_form_modify($form, $form_state);
+  }
+
+  form_set_cache($form_build_id, $form, $form_state);
+  $form += array(
+    '#post' => $_POST,
+    '#programmed' => FALSE,
+  );
+  $form_id = $_POST['form_id'];
+  $form = form_builder($form_id, $form, $form_state);
+  // Remove dublicate wrapper
+  unset($form['#prefix'], $form['#suffix']);
+
+  $output = theme('status_messages') . drupal_render($form);
+  return drupal_json(array('status' => TRUE, 'data' => $output));
+}
+
+/**
+* Callback function for uc_oos_order/order.
+*/
+function uc_oos_order_request($form, &$form_state) {
+}
+
+/**
+ * Sets custom submit callback and adds submit button.
+ *
+ * @param array $from
+ * @param array $form_state
+ */
+function uc_oos_order_addtocart_form_modify(&$form, &$form_state) {
+  // Save original submit and validate callbacks
+  $form_state['storage']['uc_oos_order']['submit'] = $form['#submit'];
+  $form_state['storage']['uc_oos_order']['validate'] = $form['#validate'];
+
+  // Replace submit
+  unset($form['#validate'], $form['#submit']);
+  $form['#submit'][] = 'uc_oos_order_request';
+
+  // Hide original and add custom submit button
+  $form['submit']['#access'] = FALSE;
+  $form['submit-order']  = array(
+    '#type' => 'submit',
+    '#value' => t('Order product'),
+    '#attributes' => array(
+      'class' => 'uc-oos-order',
+    ),
+  );
+}
+
+/**
+ * Restores original submit callbacks and submit button.
+ *
+ * @param array $from
+ * @param array $form_state
+ */
+function uc_oos_order_addtocart_form_restore(&$form, &$form_state) {
+  // Restore original submit and validate callbacks
+  if (isset($form_state['storage']['uc_oos_order']['submit'])) {
+    $form['#submit'] = $form_state['storage']['uc_oos_order']['submit'];
+  }
+  if (isset($form_state['storage']['uc_oos_order']['validate'])) {
+    $form['#validate'] = $form_state['storage']['uc_oos_order']['validate'];
+  }
+  // Delete $form_state storage with custom submit button
+  unset($form['submit-order'], $form_state['storage']['uc_oos_order']);
+  // Show original one
+  $form['submit']['#access'] = TRUE;
+}
