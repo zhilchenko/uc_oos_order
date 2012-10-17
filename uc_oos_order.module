@@ -79,7 +79,7 @@ function uc_oos_order_form_alter(&$form, $form_state, $form_id) {
             )
           );
           // Collect for future stock checking
-          $attrs[$aid] = $value;
+          $attrs[$aid] = key($value['#options']); // Get first options array key
         }
       }
       // Add wrapper for AHAH
@@ -97,7 +97,7 @@ function uc_oos_order_form_alter(&$form, $form_state, $form_id) {
     // If product is in stock
     if ($stock !== NULL && $stock['stock'] <= 0) {
       // Set our custom action and submit button
-      uc_oos_order_addtocart_form_modify($form, $form_state);
+      uc_oos_order_addtocart_form_modify($form, $form_state, $stock['model']);
     }
   return $form;
   }
@@ -125,13 +125,13 @@ function uc_oos_order_in_stock_js() {
   $stock = uc_out_of_stock_getstockinfo($nid, $attrs);
 
   // If product is in stock
-  if ($stock === NULL && $stock['stock'] > 0) {
+  if ($stock === NULL || $stock['stock'] > 0) {
     // Restore original submit callbacks and button
     uc_oos_order_addtocart_form_restore($form, $form_state);
   }
   else {
     // Set custom submit callback and add submit button
-    uc_oos_order_addtocart_form_modify($form, $form_state);
+    uc_oos_order_addtocart_form_modify($form, $form_state, $stock['model']);
   }
 
   form_set_cache($form_build_id, $form, $form_state);
@@ -168,6 +168,11 @@ function uc_oos_order_request($form, &$form_state) {
     if (!uc_oos_order_order_exist($stock['model'], $user->uid)) {
       uc_oos_order_order_add($stock['model'], $user->uid);
       drupal_set_message(t('Order added.'));
+    }
+    else {
+      // If order already exist - remove it
+      uc_oos_order_order_del($stock['model'], $user->uid);
+      drupal_set_message(t('Order removed.'));
     }
   }
   else {
@@ -208,12 +213,18 @@ function uc_oos_order_anon_form($form_state, $model) {
   return $form;
 }
 
+/**
+ * Validate callback for uc_oos_order_anon_form().
+ */
 function uc_oos_order_anon_form_validate($elements, &$form_state, $form_id = NULL) {
   if ($error = user_validate_mail($form_state['values']['mail'])) {
     form_set_error('mail', $error);
   }
 }
 
+/**
+ * Submit callback for uc_oos_order_anon_form().
+ */
 function uc_oos_order_anon_form_submit($form, &$form_state) {
   global $user;
 
@@ -255,12 +266,24 @@ function uc_oos_order_order_add($sku, $uid, $mail = '') {
 }
 
 /**
+* Deletes order from database.
+*/
+function uc_oos_order_order_del($sku, $uid, $mail = '') {
+  return db_query("DELETE FROM {uc_oos_order} WHERE sku = '%s' AND uid = %d AND mail = '%s'",
+                    $sku, $uid, $mail);
+}
+
+/**
  * Sets custom submit callback and adds submit button.
  *
  * @param array $from
  * @param array $form_state
  */
-function uc_oos_order_addtocart_form_modify(&$form, &$form_state) {
+function uc_oos_order_addtocart_form_modify(&$form, &$form_state, $sku) {
+  global $user;
+
+  // Check if order already exist
+  $remove_order = uc_oos_order_order_exist($sku, $user->uid);
 
   // Save original submit and validate callbacks
   $form_state['storage']['uc_oos_order']['submit'] = $form['#submit'];
@@ -274,7 +297,7 @@ function uc_oos_order_addtocart_form_modify(&$form, &$form_state) {
   $form['submit']['#access'] = FALSE;
   $form['submit-order']  = array(
     '#type' => 'submit',
-    '#value' => t('Order product'),
+    '#value' => $remove_order ? t('Remove order') : t('Order product'),
     '#attributes' => array(
       'class' => 'uc-oos-order',
     ),
