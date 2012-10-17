@@ -29,6 +29,14 @@ function uc_oos_order_menu() {
     'type' => MENU_CALLBACK,
   );
 
+  $items['uc_oos_order/anon'] = array(
+    'title' => 'Order out of stock',
+    'access callback' => 'uc_oos_order_anon_form_access',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_oos_order_anon_form', 2),
+    'type' => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
@@ -87,7 +95,7 @@ function uc_oos_order_form_alter(&$form, $form_state, $form_id) {
       $stock = uc_out_of_stock_getstockinfo_from_model($model);
     }
     // If product is in stock
-    if ($stock['stock'] <= 0) {
+    if ($stock !== NULL && $stock['stock'] <= 0) {
       // Set our custom action and submit button
       uc_oos_order_addtocart_form_modify($form, $form_state);
     }
@@ -117,7 +125,7 @@ function uc_oos_order_in_stock_js() {
   $stock = uc_out_of_stock_getstockinfo($nid, $attrs);
 
   // If product is in stock
-  if ($stock['stock'] > 0) {
+  if ($stock === NULL && $stock['stock'] > 0) {
     // Restore original submit callbacks and button
     uc_oos_order_addtocart_form_restore($form, $form_state);
   }
@@ -141,9 +149,109 @@ function uc_oos_order_in_stock_js() {
 }
 
 /**
-* Callback function for uc_oos_order/order.
+* Submit callback for add-to-cart form.
 */
 function uc_oos_order_request($form, &$form_state) {
+  global $user;
+
+  // Get model from attributes
+  if (isset($form_state['values']['attributes'])) {
+    $nid = $form_state['values']['nid'];
+    $attrs = $form_state['values']['attributes'];
+    $stock = uc_out_of_stock_getstockinfo($nid, $attrs);
+  }
+  else {
+    $stock = uc_out_of_stock_getstockinfo_from_model($form_state['values']['node']->model);
+  }
+
+  if (user_is_logged_in()) {
+    if (!uc_oos_order_order_exist($stock['model'], $user->uid)) {
+      uc_oos_order_order_add($stock['model'], $user->uid);
+      drupal_set_message(t('Order added.'));
+    }
+  }
+  else {
+    // Redirect to anonymous form
+    $form_state['redirect'] = array(
+      'uc_oos_order/anon/'. $stock['model'],
+      drupal_get_destination(),
+    );
+    unset($form_state['storage']); // Required for redirect
+  }
+}
+
+/**
+ * Form with email field for anonymous users.
+ */
+function uc_oos_order_anon_form($form_state, $model) {
+  // If there is no model existed or model in stock
+  if (!$model || $stock = uc_out_of_stock_getstockinfo_from_model($model) === NULL
+      || $stock['stock'] > 0) {
+    drupal_not_found();
+    exit();
+  }
+
+  $form['product'] = array(
+    '#value' => t('Enter your email address and our manager will contact you.'),
+  );
+  $form['model'] = array('#type' => 'value', '#value' => $model);
+  $form['mail'] = array(
+    '#type' => 'textfield',
+    '#title' => t('E-mail address'),
+    '#maxlength' => EMAIL_MAX_LENGTH,
+    '#required' => TRUE,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  return $form;
+}
+
+function uc_oos_order_anon_form_validate($elements, &$form_state, $form_id = NULL) {
+  if ($error = user_validate_mail($form_state['values']['mail'])) {
+    form_set_error('mail', $error);
+  }
+}
+
+function uc_oos_order_anon_form_submit($form, &$form_state) {
+  global $user;
+
+  $model = $form_state['values']['model'];
+  $mail  = $form_state['values']['mail'];
+
+  if (!uc_oos_order_order_exist($model, $user->uid, $mail)) {
+    uc_oos_order_order_add($model, $user->uid, $mail);
+  }
+  drupal_set_message(t('Order added.'));
+}
+
+/**
+ * Access callback for anonymous form page.
+ */
+function uc_oos_order_anon_form_access() {
+  return user_access('order out of stock') && !user_is_logged_in();
+}
+
+/**
+* Check if order alredy exist in database.
+*/
+function uc_oos_order_order_exist($sku, $uid, $mail = '') {
+  return db_result(db_query("SELECT rid FROM {uc_oos_order}
+                              WHERE sku = '%s' AND uid = %d AND mail = '%s'",
+                              $sku, $uid, $mail));
+}
+
+/**
+* Writes new order to database.
+*/
+function uc_oos_order_order_add($sku, $uid, $mail = '') {
+  $order = new stdClass;
+  $order->sku     = $sku;
+  $order->uid     = $uid;
+  $order->mail    = $mail;
+  $order->created = REQUEST_TIME;
+  drupal_write_record('uc_oos_order', $order);
 }
 
 /**
@@ -153,6 +261,7 @@ function uc_oos_order_request($form, &$form_state) {
  * @param array $form_state
  */
 function uc_oos_order_addtocart_form_modify(&$form, &$form_state) {
+
   // Save original submit and validate callbacks
   $form_state['storage']['uc_oos_order']['submit'] = $form['#submit'];
   $form_state['storage']['uc_oos_order']['validate'] = $form['#validate'];
