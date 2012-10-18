@@ -217,6 +217,7 @@ function uc_oos_order_request($form, &$form_state) {
       $mail = $form_state['values']['mail'];
       if ($error = valid_email_address($mail)) {
         form_set_error('mail', $error);
+        return FALSE;
       }
       else {
         // Save email in session variable
