@@ -41,6 +41,13 @@ function uc_oos_order_menu() {
 }
 
 /**
+ * Implementation of hook_cron()
+ */
+function uc_oos_order_cron() {
+  uc_oos_order_send_admin_email();
+}
+
+/**
  * Implementation of hook_form_alter()
  */
 function uc_oos_order_form_alter(&$form, $form_state, $form_id) {
@@ -322,4 +329,70 @@ function uc_oos_order_addtocart_form_restore(&$form, &$form_state) {
   unset($form['submit-order'], $form_state['storage']['uc_oos_order']);
   // Show original one
   $form['submit']['#access'] = TRUE;
+}
+
+/**
+ * Generates orders summary message and sends it to admin email.
+ */
+function uc_oos_order_send_admin_email() {
+  // Get all orders
+  $result = db_query('SELECT * FROM {uc_oos_order}');
+  while ($order = db_fetch_object($result)) {
+    if ($order->uid !== 0) {
+      // Get username if it not anonymous order
+      $user = user_load(array('uid' => $order->uid));
+      $order->username = $user->name;
+    }
+    // Get product name
+    $res = db_fetch_object(db_query("SELECT * FROM {uc_product_adjustments} pa
+      JOIN {node} n ON pa.nid = n.nid WHERE pa.model = '%s'", $order->sku));
+    // If model has attributes
+    if ($res) {
+      $product = $res->title . ' (';
+      foreach ($attrs = unserialize($res->combination) as $aid => $oid) {
+        $product .= uc_attribute_load($aid)->name . ': ' . uc_attribute_option_load($oid)->name;
+        $product .= ', ';
+      };
+      $product = rtrim($product, ', ') . ')';
+      $order->product = $product;
+    }
+    else {
+      $res = db_fetch_object(db_query("SELECT * FROM {uc_products} pr
+        JOIN {node} n ON pr.nid = n.nid WHERE pr.model = '%s'", $order->sku));
+      $order->product = $res->title;
+    }
+    $orders[] = $order;
+  }
+  // Exit if no orders
+  if (($count = count($orders)) === 0) {
+    return FALSE;
+  }
+
+  $admin = user_load(array('uid' => 1));
+  $params = array(
+    'account' => $admin,
+    'count'   => $count,
+    'orders'  => $orders,
+  );
+
+  drupal_mail('uc_oos_order', 'summary', uc_store_email_from(), $admin->language, $params);
+
+}
+
+function uc_oos_order_mail($key, &$message, $params) {
+  $lang = $message['language']->language;
+  $variables = user_mail_tokens($params['account'], $language);
+  switch($key) {
+    case 'summary':
+      $message['subject'] = t('Out of stock order notification from !site', $variables, $lang);
+      $message['body'][] = t("!count new orders:", array('!count' => $params['count']), $lang);
+      foreach ($params['orders'] as $order) {
+        $message['body'][] = t("!username ordered !product with SKU: !sku", array(
+          '!username' => trim($order->mail) === '' ? $order->username : $order->mail,
+          '!product' => $order->product,
+          '!sku' => $order->sku,
+        ), $lang);
+      }
+      break;
+  }
 }
