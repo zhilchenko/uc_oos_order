@@ -48,18 +48,26 @@ function uc_oos_order_cron() {
   uc_oos_order_send_admin_email();
 }
 
-function uc_oos_order_settings() {
-
-  $form['uc_oos_order_user_html'] = array(
-    '#type' => 'textarea',
-    '#title' => t('Additional HTML'),
-    '#default_value' =>variable_get('uc_oos_order_user_html', ''),
-    '#description' => t('This HTML will be displayed below order button.'),
-  );
-
-  $form['uc_oos_order_format'] = filter_form(variable_get('uc_oos_order_format', FILTER_FORMAT_DEFAULT), NULL, array('uc_oos_order_format'));
-
-  return system_settings_form($form);
+/**
+ * Implementation of hook_mail()
+ */
+function uc_oos_order_mail($key, &$message, $params) {
+  $lang = $message['language']->language;
+  $variables = user_mail_tokens($params['account'], $language);
+  switch($key) {
+    case 'summary':
+      // Set content type to HTML
+      $message['headers'] = array(
+        'MIME-Version' => '1.0',
+        'Content-Type' => 'text/html; charset=UTF-8; format=flowed',
+        'Content-Transfer-Encoding' => '8Bit',
+        'X-Mailer' => 'Drupal'
+      );
+      $message['subject'] = t('Out of stock order notification from !site', $variables, $lang);
+      $message['body'][] = t("!count new orders:", array('!count' => $params['count']), $lang);
+      $message['body'][] = $params['orders'];
+      break;
+  }
 }
 
 /**
@@ -130,8 +138,25 @@ function uc_oos_order_form_alter(&$form, $form_state, $form_id) {
  ***************************/
 
 /**
-* Callback function for uc_oos_order/get_stock.
-* The return HTML will be outputted by AHAH.
+ * Returns settings form.
+ */
+function uc_oos_order_settings() {
+
+  $form['uc_oos_order_user_html'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Additional HTML'),
+    '#default_value' =>variable_get('uc_oos_order_user_html', ''),
+    '#description' => t('This HTML will be displayed below order button.'),
+  );
+
+  $form['uc_oos_order_format'] = filter_form(variable_get('uc_oos_order_format', FILTER_FORMAT_DEFAULT), NULL, array('uc_oos_order_format'));
+
+  return system_settings_form($form);
+}
+
+/**
+* AHAH callback function for uc_oos_order/in_stock.
+* Checks product stock value and returns adjusted form.
 */
 function uc_oos_order_in_stock_js() {
   // Get form from cache
@@ -394,24 +419,5 @@ function uc_oos_order_send_admin_email() {
 
   if ($message['result']) {
     db_query('DELETE FROM {uc_oos_order} WHERE  rid IN (' . db_placeholders($rids) . ")", $rids);
-  }
-}
-
-function uc_oos_order_mail($key, &$message, $params) {
-  $lang = $message['language']->language;
-  $variables = user_mail_tokens($params['account'], $language);
-  switch($key) {
-    case 'summary':
-      // Set content type to HTML
-      $message['headers'] = array(
-        'MIME-Version' => '1.0',
-        'Content-Type' => 'text/html; charset=UTF-8; format=flowed',
-        'Content-Transfer-Encoding' => '8Bit',
-        'X-Mailer' => 'Drupal'
-      );
-      $message['subject'] = t('Out of stock order notification from !site', $variables, $lang);
-      $message['body'][] = t("!count new orders:", array('!count' => $params['count']), $lang);
-      $message['body'][] = $params['orders'];
-      break;
   }
 }
