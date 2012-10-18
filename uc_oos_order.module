@@ -367,6 +367,7 @@ function uc_oos_order_send_admin_email() {
       'sku' => $order->sku,
       'date' => format_date($order->created, 'small'),
       );
+    $rids[] = $order->rid;
   }
   // Exit if no orders
   if (($count = count($orders)) === 0) {
@@ -393,6 +394,9 @@ function uc_oos_order_send_admin_email() {
 
   $message = drupal_mail('uc_oos_order', 'summary', uc_store_email_from(), $admin->language, $params);
 
+  if ($message['result']) {
+    db_query('DELETE FROM {uc_oos_order} WHERE rid IN (' . db_placeholders($rids) . ")", $rids);
+  }
 }
 
 function uc_oos_order_mail($key, &$message, $params) {
