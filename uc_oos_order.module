@@ -22,6 +22,15 @@ function uc_oos_order_perm() {
 function uc_oos_order_menu() {
   $items = array();
 
+  $items['admin/store/settings/uc_oos_order'] = array(
+    'title' => 'Out of stock order settings',
+    'access arguments' => array('administer store'),
+    'description' => 'Configure out of stock order settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_oos_order_settings'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
   $items['uc_oos_order/in_stock'] = array(
     'title' => 'AJAX callback',
     'access arguments' => array('order out of stock'),
@@ -45,6 +54,20 @@ function uc_oos_order_menu() {
  */
 function uc_oos_order_cron() {
   uc_oos_order_send_admin_email();
+}
+
+function uc_oos_order_settings() {
+
+  $form['uc_oos_order_user_html'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Additional HTML'),
+    '#default_value' =>variable_get('uc_oos_order_user_html', ''),
+    '#description' => t('This HTML will be displayed below order button.'),
+  );
+
+  $form['uc_oos_order_format'] = filter_form(variable_get('uc_oos_order_format', FILTER_FORMAT_DEFAULT), NULL, array('uc_oos_order_format'));
+
+  return system_settings_form($form);
 }
 
 /**
@@ -309,6 +332,11 @@ function uc_oos_order_addtocart_form_modify(&$form, &$form_state, $sku) {
       'class' => 'uc-oos-order',
     ),
   );
+  // Add user defined HTML
+  $html = check_markup(variable_get('uc_oos_order_user_html', UC_OUT_OF_STOCK_DEFAULT_HTML), variable_get('uc_oos_order_format', FILTER_FORMAT_DEFAULT), FALSE);
+  if ($html) {
+    $form['submit-order']['#suffix'] = $html;
+  }
 }
 
 /**
@@ -395,7 +423,7 @@ function uc_oos_order_send_admin_email() {
   $message = drupal_mail('uc_oos_order', 'summary', uc_store_email_from(), $admin->language, $params);
 
   if ($message['result']) {
-    db_query('DELETE FROM {uc_oos_order} WHERE rid IN (' . db_placeholders($rids) . ")", $rids);
+    db_query('DELETE FROM {uc_oos_order} WHERE  rid IN (' . db_placeholders($rids) . ")", $rids);
   }
 }
 
