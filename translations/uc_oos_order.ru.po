@@ -1,0 +1,104 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: uc_oos_order\n"
+"POT-Creation-Date: 2012-10-18 10:45+0600\n"
+"PO-Revision-Date: \n"
+"Last-Translator: Zhilchenko Stanislav <zhilchenko@gmail.com>\n"
+"Language-Team: \n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: uc_oos_order.module:63
+msgid "Additional HTML"
+msgstr "Дополнительный HTML-код."
+
+#: uc_oos_order.module:65
+msgid "This HTML will be displayed below order button."
+msgstr "Этот HTML-код будет отображен ниже кнопки заказа."
+
+#: uc_oos_order.module:200;267
+msgid "Order added."
+msgstr "Заказ добавлен."
+
+#: uc_oos_order.module:205
+msgid "Order removed."
+msgstr "Заказ удален."
+
+#: uc_oos_order.module:230
+msgid "Enter your email address and our manager will contact you."
+msgstr "Введите ваш E-mail и наш менеджер свяжется с вами."
+
+#: uc_oos_order.module:235
+msgid "E-mail address"
+msgstr "E-mail адрес"
+
+#: uc_oos_order.module:241
+msgid "Submit"
+msgstr ""
+
+#: uc_oos_order.module:330
+msgid "Remove order"
+msgstr "Удалить заказ"
+
+#: uc_oos_order.module:330
+msgid "Order product"
+msgstr "Заказать товар"
+
+#: uc_oos_order.module:407
+msgid "Customer"
+msgstr ""
+
+#: uc_oos_order.module:408
+msgid "Product"
+msgstr ""
+
+#: uc_oos_order.module:409
+msgid "SKU"
+msgstr ""
+
+#: uc_oos_order.module:410
+msgid "Date"
+msgstr ""
+
+#: uc_oos_order.module:442
+msgid "Out of stock order notification from !site"
+msgstr "Оповещение о заказанных товарах, отсутствующих в продаже, от !site"
+
+#: uc_oos_order.module:443
+msgid "!count new orders:"
+msgstr "!count новых заказов:"
+
+#: uc_oos_order.module:16
+msgid "order out of stock"
+msgstr "заказ товаров, отсутствующих в продаже"
+
+#: uc_oos_order.module:26
+msgid "Out of stock order settings"
+msgstr "Настройки заказа товаров, отсутствующих в продаже"
+
+#: uc_oos_order.module:28
+msgid "Configure out of stock order settings."
+msgstr "Настроить заказ товаров, отсутствующих в продаже"
+
+#: uc_oos_order.module:35
+msgid "AJAX callback"
+msgstr ""
+
+#: uc_oos_order.module:42
+msgid "Order out of stock"
+msgstr "Заказ товара, отсутствующего в продаже"
+
+#: uc_oos_order.info:0
+msgid "Out of stock order"
+msgstr ""
+
+#: uc_oos_order.info:0
+msgid "Allows customer make procurement request for out of stock product."
+msgstr "Позволяет покупателям делать запрос на покупку товаров, отсутствующих в продаже."
+
+#: uc_oos_order.info:0
+msgid "Ubercart - extra"
+msgstr ""
+

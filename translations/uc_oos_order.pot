@@ -1,0 +1,113 @@
+# $Id$
+#
+# LANGUAGE translation of Drupal (general)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from files:
+#  uc_oos_order.module: n/a
+#  uc_oos_order.info: n/a
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"POT-Creation-Date: 2012-10-18 10:45+0600\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Last-Translator: NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <EMAIL@ADDRESS>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: uc_oos_order.module:63
+msgid "Additional HTML"
+msgstr ""
+
+#: uc_oos_order.module:65
+msgid "This HTML will be displayed below order button."
+msgstr ""
+
+#: uc_oos_order.module:200;267
+msgid "Order added."
+msgstr ""
+
+#: uc_oos_order.module:205
+msgid "Order removed."
+msgstr ""
+
+#: uc_oos_order.module:230
+msgid "Enter your email address and our manager will contact you."
+msgstr ""
+
+#: uc_oos_order.module:235
+msgid "E-mail address"
+msgstr ""
+
+#: uc_oos_order.module:241
+msgid "Submit"
+msgstr ""
+
+#: uc_oos_order.module:330
+msgid "Remove order"
+msgstr ""
+
+#: uc_oos_order.module:330
+msgid "Order product"
+msgstr ""
+
+#: uc_oos_order.module:407
+msgid "Customer"
+msgstr ""
+
+#: uc_oos_order.module:408
+msgid "Product"
+msgstr ""
+
+#: uc_oos_order.module:409
+msgid "SKU"
+msgstr ""
+
+#: uc_oos_order.module:410
+msgid "Date"
+msgstr ""
+
+#: uc_oos_order.module:442
+msgid "Out of stock order notification from !site"
+msgstr ""
+
+#: uc_oos_order.module:443
+msgid "!count new orders:"
+msgstr ""
+
+#: uc_oos_order.module:16
+msgid "order out of stock"
+msgstr ""
+
+#: uc_oos_order.module:26
+msgid "Out of stock order settings"
+msgstr ""
+
+#: uc_oos_order.module:28
+msgid "Configure out of stock order settings."
+msgstr ""
+
+#: uc_oos_order.module:35
+msgid "AJAX callback"
+msgstr ""
+
+#: uc_oos_order.module:42
+msgid "Order out of stock"
+msgstr ""
+
+#: uc_oos_order.info:0
+msgid "Out of stock order"
+msgstr ""
+
+#: uc_oos_order.info:0
+msgid "Allows customer make procurement request for out of stock product."
+msgstr ""
+
+#: uc_oos_order.info:0
+msgid "Ubercart - extra"
+msgstr ""
+
