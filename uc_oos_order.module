@@ -38,14 +38,6 @@ function uc_oos_order_menu() {
     'type' => MENU_CALLBACK,
   );
 
-  $items['uc_oos_order/anon'] = array(
-    'title' => 'Order out of stock',
-    'access callback' => 'uc_oos_order_anon_form_access',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('uc_oos_order_anon_form', 2),
-    'type' => MENU_CALLBACK,
-  );
-
   return $items;
 }
 
@@ -56,18 +48,26 @@ function uc_oos_order_cron() {
   uc_oos_order_send_admin_email();
 }
 
-function uc_oos_order_settings() {
-
-  $form['uc_oos_order_user_html'] = array(
-    '#type' => 'textarea',
-    '#title' => t('Additional HTML'),
-    '#default_value' =>variable_get('uc_oos_order_user_html', ''),
-    '#description' => t('This HTML will be displayed below order button.'),
-  );
-
-  $form['uc_oos_order_format'] = filter_form(variable_get('uc_oos_order_format', FILTER_FORMAT_DEFAULT), NULL, array('uc_oos_order_format'));
-
-  return system_settings_form($form);
+/**
+ * Implementation of hook_mail()
+ */
+function uc_oos_order_mail($key, &$message, $params) {
+  $lang = $message['language']->language;
+  $variables = user_mail_tokens($params['account'], $language);
+  switch($key) {
+    case 'summary':
+      // Set content type to HTML
+      $message['headers'] = array(
+        'MIME-Version' => '1.0',
+        'Content-Type' => 'text/html; charset=UTF-8; format=flowed',
+        'Content-Transfer-Encoding' => '8Bit',
+        'X-Mailer' => 'Drupal'
+      );
+      $message['subject'] = t('Out of stock order notification from !site', $variables, $lang);
+      $message['body'][] = t("!count new orders:", array('!count' => $params['count']), $lang);
+      $message['body'][] = $params['orders'];
+      break;
+  }
 }
 
 /**
@@ -138,8 +138,25 @@ function uc_oos_order_form_alter(&$form, $form_state, $form_id) {
  ***************************/
 
 /**
-* Callback function for uc_oos_order/get_stock.
-* The return HTML will be outputted by AHAH.
+ * Returns settings form.
+ */
+function uc_oos_order_settings() {
+
+  $form['uc_oos_order_user_html'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Additional HTML'),
+    '#default_value' =>variable_get('uc_oos_order_user_html', ''),
+    '#description' => t('This HTML will be displayed below order button.'),
+  );
+
+  $form['uc_oos_order_format'] = filter_form(variable_get('uc_oos_order_format', FILTER_FORMAT_DEFAULT), NULL, array('uc_oos_order_format'));
+
+  return system_settings_form($form);
+}
+
+/**
+* AHAH callback function for uc_oos_order/in_stock.
+* Checks product stock value and returns adjusted form.
 */
 function uc_oos_order_in_stock_js() {
   // Get form from cache
@@ -184,6 +201,31 @@ function uc_oos_order_in_stock_js() {
 function uc_oos_order_request($form, &$form_state) {
   global $user;
 
+  if (!user_access('order out of stock')) {
+    return FALSE;
+  }
+
+  // We need an email from anonymous customer
+  if (!user_is_logged_in()) {
+    if (isset($_SESSION['uc_oos_order']['mail'])
+        && valid_email_address($_SESSION['uc_oos_order']['mail'])) {
+      // Get it from session variable
+      $mail = $_SESSION['uc_oos_order']['mail'];
+    }
+    else {
+      // Get from form field
+      $mail = $form_state['values']['mail'];
+      if ($error = valid_email_address($mail)) {
+        form_set_error('mail', $error);
+        return FALSE;
+      }
+      else {
+        // Save email in session variable
+        $_SESSION['uc_oos_order']['mail'] = $mail;
+      }
+    }
+  }
+
   // Get model from attributes
   if (isset($form_state['values']['attributes'])) {
     $nid = $form_state['values']['nid'];
@@ -194,84 +236,15 @@ function uc_oos_order_request($form, &$form_state) {
     $stock = uc_out_of_stock_getstockinfo_from_model($form_state['values']['node']->model);
   }
 
-  if (user_is_logged_in()) {
-    if (!uc_oos_order_order_exist($stock['model'], $user->uid)) {
-      uc_oos_order_order_add($stock['model'], $user->uid);
-      drupal_set_message(t('Order added.'));
-    }
-    else {
-      // If order already exist - remove it
-      uc_oos_order_order_del($stock['model'], $user->uid);
-      drupal_set_message(t('Order removed.'));
-    }
+  if (!uc_oos_order_order_exist($stock['model'], $user->uid, $mail)) {
+    uc_oos_order_order_add($stock['model'], $user->uid, $mail);
+    drupal_set_message(t('Order added.'));
   }
   else {
-    // Redirect to anonymous form
-    $form_state['redirect'] = array(
-      'uc_oos_order/anon/'. $stock['model'],
-      drupal_get_destination(),
-    );
-    unset($form_state['storage']); // Required for redirect
+    // If order already exist - remove it
+    uc_oos_order_order_del($stock['model'], $user->uid, $mail);
+    drupal_set_message(t('Order removed.'));
   }
-}
-
-/**
- * Form with email field for anonymous users.
- */
-function uc_oos_order_anon_form($form_state, $model) {
-  // If there is no model existed or model in stock
-  if (!$model || $stock = uc_out_of_stock_getstockinfo_from_model($model) === NULL
-      || $stock['stock'] > 0) {
-    drupal_not_found();
-    exit();
-  }
-
-  $form['product'] = array(
-    '#value' => t('Enter your email address and our manager will contact you.'),
-  );
-  $form['model'] = array('#type' => 'value', '#value' => $model);
-  $form['mail'] = array(
-    '#type' => 'textfield',
-    '#title' => t('E-mail address'),
-    '#maxlength' => EMAIL_MAX_LENGTH,
-    '#required' => TRUE,
-  );
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Submit'),
-  );
-  return $form;
-}
-
-/**
- * Validate callback for uc_oos_order_anon_form().
- */
-function uc_oos_order_anon_form_validate($elements, &$form_state, $form_id = NULL) {
-  if ($error = user_validate_mail($form_state['values']['mail'])) {
-    form_set_error('mail', $error);
-  }
-}
-
-/**
- * Submit callback for uc_oos_order_anon_form().
- */
-function uc_oos_order_anon_form_submit($form, &$form_state) {
-  global $user;
-
-  $model = $form_state['values']['model'];
-  $mail  = $form_state['values']['mail'];
-
-  if (!uc_oos_order_order_exist($model, $user->uid, $mail)) {
-    uc_oos_order_order_add($model, $user->uid, $mail);
-  }
-  drupal_set_message(t('Order added.'));
-}
-
-/**
- * Access callback for anonymous form page.
- */
-function uc_oos_order_anon_form_access() {
-  return user_access('order out of stock') && !user_is_logged_in();
 }
 
 /**
@@ -312,8 +285,17 @@ function uc_oos_order_order_del($sku, $uid, $mail = '') {
 function uc_oos_order_addtocart_form_modify(&$form, &$form_state, $sku) {
   global $user;
 
+  if (isset($_SESSION['uc_oos_order']['mail'])
+      && valid_email_address($_SESSION['uc_oos_order']['mail'])) {
+    // Get it from session variable
+    $mail = $_SESSION['uc_oos_order']['mail'];
+  }
+  else {
+    $mail = $form_state['values']['mail'];
+  }
+
   // Check if order already exist
-  $remove_order = uc_oos_order_order_exist($sku, $user->uid);
+  $remove_order = uc_oos_order_order_exist($sku, $user->uid, $mail);
 
   // Save original submit and validate callbacks
   $form_state['storage']['uc_oos_order']['submit'] = $form['#submit'];
@@ -325,12 +307,26 @@ function uc_oos_order_addtocart_form_modify(&$form, &$form_state, $sku) {
 
   // Hide original and add custom submit button
   $form['submit']['#access'] = FALSE;
-  $form['submit-order']  = array(
+  $form['uc-oos-order']  = array(
+    '#type' => 'fieldset',
+    '#title' => t('Order out of stock'),
+    '#collapsible' => FALSE,
+  );
+  if (!user_is_logged_in()) {
+    $form['uc-oos-order']['mail'] = array(
+      '#type' => 'textfield',
+      '#title' => t('E-mail address'),
+      '#maxlength' => EMAIL_MAX_LENGTH,
+      '#required' => TRUE,
+    );
+    if ($mail) {
+      $form['uc-oos-order']['mail']['#type'] = 'value';
+      $form['uc-oos-order']['mail']['#default_value'] = $mail;
+    }
+  }
+  $form['uc-oos-order']['submit-order']  = array(
     '#type' => 'submit',
     '#value' => $remove_order ? t('Remove order') : t('Order product'),
-    '#attributes' => array(
-      'class' => 'uc-oos-order',
-    ),
   );
   // Add user defined HTML
   $html = check_markup(variable_get('uc_oos_order_user_html', UC_OUT_OF_STOCK_DEFAULT_HTML), variable_get('uc_oos_order_format', FILTER_FORMAT_DEFAULT), FALSE);
@@ -354,7 +350,7 @@ function uc_oos_order_addtocart_form_restore(&$form, &$form_state) {
     $form['#validate'] = $form_state['storage']['uc_oos_order']['validate'];
   }
   // Delete $form_state storage with custom submit button
-  unset($form['submit-order'], $form_state['storage']['uc_oos_order']);
+  unset($form['uc-oos-order'], $form_state['storage']['uc_oos_order']);
   // Show original one
   $form['submit']['#access'] = TRUE;
 }
@@ -427,21 +423,3 @@ function uc_oos_order_send_admin_email() {
   }
 }
 
-function uc_oos_order_mail($key, &$message, $params) {
-  $lang = $message['language']->language;
-  $variables = user_mail_tokens($params['account'], $language);
-  switch($key) {
-    case 'summary':
-      // Set content type to HTML
-      $message['headers'] = array(
-        'MIME-Version' => '1.0',
-        'Content-Type' => 'text/html; charset=UTF-8; format=flowed',
-        'Content-Transfer-Encoding' => '8Bit',
-        'X-Mailer' => 'Drupal'
-      );
-      $message['subject'] = t('Out of stock order notification from !site', $variables, $lang);
-      $message['body'][] = t("!count new orders:", array('!count' => $params['count']), $lang);
-      $message['body'][] = $params['orders'];
-      break;
-  }
-}
